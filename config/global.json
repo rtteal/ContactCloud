@@ -1,0 +1,11 @@
+{
+    "applications": {
+        "Contact": {
+            "applicationId": "uXNe2kO8BuPKGuhLNF4zhMH1VD2YyIVPfjn5h9ZM", 
+            "masterKey": "SobxpN3wtAUFBqouXqpBXyrPvlrU7OI1XSCqWItJ"
+        }, 
+        "_default": {
+            "link": "Contact"
+        }
+    }
+}
