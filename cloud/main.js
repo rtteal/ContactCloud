@@ -2,8 +2,14 @@ Parse.Cloud.beforeSave("Request", function(request, response) {
     Parse.Cloud.useMasterKey(); // allows us to update the user table without being logged in
     var to = request.object.get("to");
     var contactObj = request.object.get("fromUser");
+	
+	// push related variables
+	var recipients = new Parse.Query(Parse.Installation);
+    var message = "";
 
     if (request.object.get("approved") === true) {
+		recipients.equalTo("username", request.object.get("from"));
+		message = "Your contact request to " + request.object.get("to") + " was approved!";
         contactObj.fetch({
             success: function(contact) {
                 var userQuery = new Parse.Query(Parse.User);
@@ -35,6 +41,8 @@ Parse.Cloud.beforeSave("Request", function(request, response) {
             }
         });
     } else {
+		recipients.equalTo("username", request.object.get("to"));
+		message = "You got a contact request from " + request.object.get("from");
         contactObj.fetch({
             success: function(contact) {
                 var userQuery = new Parse.Query(Parse.User);
@@ -101,5 +109,12 @@ Parse.Cloud.beforeDelete("Request", function(request, response) {
             console.log("Error: " + error.message);
             response.error(error.message);
         }
+    });
+	
+	Parse.Push.send({
+	where: recipients,
+	data: {
+	    alert: message
+	}
     });
 });
