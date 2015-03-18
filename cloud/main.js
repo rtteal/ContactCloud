@@ -74,6 +74,13 @@ Parse.Cloud.beforeSave("Request", function(request, response) {
             }
         });
     }
+
+    Parse.Push.send({
+        where: recipients,
+        data: {
+            alert: message
+        }
+    });
 });
 
 Parse.Cloud.beforeDelete("Request", function(request, response) {
@@ -111,10 +118,4 @@ Parse.Cloud.beforeDelete("Request", function(request, response) {
         }
     });
 	
-	Parse.Push.send({
-	where: recipients,
-	data: {
-	    alert: message
-	}
-    });
 });
