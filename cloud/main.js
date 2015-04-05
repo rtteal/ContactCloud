@@ -1,7 +1,7 @@
 Parse.Cloud.beforeSave("Request", function(request, response) {
     Parse.Cloud.useMasterKey(); // allows us to update the user table without being logged in
     var to = request.object.get("to");
-    var contactObj = request.object.get("fromUser");
+    var fromUser = request.object.get("fromUser");
 	
 	// push related variables
 	var recipients = new Parse.Query(Parse.Installation);
@@ -10,20 +10,28 @@ Parse.Cloud.beforeSave("Request", function(request, response) {
     if (request.object.get("approved") === true) {
 		recipients.equalTo("username", request.object.get("from"));
 		message = "Your contact request to " + request.object.get("to") + " was approved!";
-        contactObj.fetch({
+        fromUser.fetch({
             success: function(contact) {
                 var userQuery = new Parse.Query(Parse.User);
                 userQuery.equalTo("username", to);
                 userQuery.find({
                     success: function(user) {
-                        var theUser = user[0];
-                        var relation = theUser.relation("contacts");
+                        var toUser = user[0];
+                        var relation = toUser.relation("contacts");
                         relation.add(contact);
-                        theUser.save(null, {
-                            success: function(theUser) {
-                                response.success();
+                        toUser.save(null, {
+                            success: function(toUser) {
+								var roleName = "friendsOf_" + contact.get("User").id;
+								var roleQuery = new Parse.Query("_Role");
+								roleQuery.equalTo("name", roleName);
+								roleQuery.first().then(function(role) {
+									role.getUsers().add(toUser);
+									return role.save();
+								}).then(function(toUser) {
+									response.success();    
+								});
                             },
-                            error: function(theUser, error) {
+                            error: function(toUser, error) {
                                 console.log("Error: " + error.message);
                                 response.error(error.message);
                             }
@@ -43,20 +51,20 @@ Parse.Cloud.beforeSave("Request", function(request, response) {
     } else {
 		recipients.equalTo("username", request.object.get("to"));
 		message = "You got a contact request from " + request.object.get("from");
-        contactObj.fetch({
+        fromUser.fetch({
             success: function(contact) {
                 var userQuery = new Parse.Query(Parse.User);
                 userQuery.equalTo("username", to);
                 userQuery.find({
                     success: function(user) {
-                        var theUser = user[0];
-                        var relation = theUser.relation("contacts");
+                        var toUser = user[0];
+                        var relation = toUser.relation("contacts");
                         relation.remove(contact);
-                        theUser.save(null, {
-                            success: function(theUser) {
+                        toUser.save(null, {
+                            success: function(toUser) {
                                 response.success();
                             },
-                            error: function(theUser, error) {
+                            error: function(toUser, error) {
                                 console.log("Error: " + error.message);
                                 response.error(error.message);
                             }
@@ -86,21 +94,21 @@ Parse.Cloud.beforeSave("Request", function(request, response) {
 Parse.Cloud.beforeDelete("Request", function(request, response) {
     Parse.Cloud.useMasterKey(); // allows us to update the user table without being logged in
     var to = request.object.get("to");
-    var contactObj = request.object.get("fromUser");
-    contactObj.fetch({
+    var fromUser = request.object.get("fromUser");
+    fromUser.fetch({
         success: function(contact) {
             var userQuery = new Parse.Query(Parse.User);
             userQuery.equalTo("username", to);
             userQuery.find({
                 success: function(user) {
-                    var theUser = user[0];
-                    var relation = theUser.relation("contacts");
+                    var toUser = user[0];
+                    var relation = toUser.relation("contacts");
                     relation.remove(contact);
-                    theUser.save(null, {
-                        success: function(theUser) {
+                    toUser.save(null, {
+                        success: function(toUser) {
                             response.success();
                         },
-                        error: function(theUser, error) {
+                        error: function(toUser, error) {
                             console.log("Error: " + error.message);
                             response.error(error.message);
                         }
@@ -117,5 +125,25 @@ Parse.Cloud.beforeDelete("Request", function(request, response) {
             response.error(error.message);
         }
     });
-	
+});
+
+Parse.Cloud.afterSave(Parse.User, function(request, response) {
+	Parse.Cloud.useMasterKey();
+    var user = request.object;
+    if (user.existed()) { return; }
+    var roleName = "friendsOf_" + user.id;
+    var friendRole = new Parse.Role(roleName, new Parse.ACL(user));
+    return friendRole.save().then(function(friendRole) {
+        var acl = new Parse.ACL();
+        acl.setReadAccess(friendRole, true);
+        acl.setReadAccess(user, true);
+        acl.setWriteAccess(user, true);
+        var contactInfo = new Parse.Object("ContactInfo", {
+          User: user,
+          ACL: acl
+        });
+		user.set("ContactInfo", contactInfo);
+		user.save();
+        return contactInfo.save();
+    });
 });
